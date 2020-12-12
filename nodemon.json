@@ -1,0 +1,9 @@
+{
+    "verbose": true,
+    "ignore": [
+        "./data/",
+        "./temp/",
+        "./static/",
+        "./logs/"
+    ]
+}

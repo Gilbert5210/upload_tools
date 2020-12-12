@@ -1,0 +1,48 @@
+{
+    "name": "test3",
+    "version": "1.0.0",
+    "description": "awesome project",
+    "author": "",
+    "private": true,
+    "scripts": {
+        "start": "cross-env NODE_ENV=development nodemon --inspect ./app.js",
+        "debugge": "cross-env NODE_ENV=development nodemon --inspect ./app.js",
+        "production": "cross-env NODE_ENV=production nodemon app.js"
+    },
+    "bin": {
+        "zjy": "bin/ftpserve.js"
+    },
+    "resolutions": {
+        "graceful-fs": "4.2.3"
+    },
+    "dependencies": {
+        "axios": "^0.19.0",
+        "child_process": "^1.0.2",
+        "commander": "^6.2.0",
+        "compressing": "^1.5.1",
+        "cross-env": "^6.0.3",
+        "ftp": "^0.3.10",
+        "inquirer": "^7.3.3",
+        "koa": "^2.7.0",
+        "koa-bodyparser": "^4.2.1",
+        "koa-cache-control": "^2.0.0",
+        "koa-multer": "^1.0.2",
+        "koa-route": "^3.2.0",
+        "koa-router": "^7.4.0",
+        "koa-static": "^5.0.0",
+        "koa-static-router": "^1.3.0",
+        "koa2-cors": "^2.0.6",
+        "lodash": "^4.17.15",
+        "log-master": "^1.0.0",
+        "log4js": "^6.3.0",
+        "mime": "^2.4.4",
+        "minimist": "^1.2.0",
+        "mz": "^2.7.0",
+        "node-uuid": "^1.4.8",
+        "nodemon": "^1.19.4",
+        "request": "^2.88.0",
+        "ssh2-sftp-client": "^5.3.2",
+        "unzip": "^0.1.11"
+    },
+    "devDependencies": {}
+}
