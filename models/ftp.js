@@ -6,8 +6,7 @@ let path = require('path');
 let fs = require('fs');
 let Client = require('ftp');
 let BaseUploader = require('./base_uploader');
-let { glob } = require('./util');
-let ftpClient = new Client();
+let { glob, uploadActionType } = require('./util');
 let {FTP_OPTION} = require('./config');                 // 配置项的默认连接信息
 const Logger = require('../lib/Logger');
 
@@ -39,24 +38,22 @@ class Ftp extends BaseUploader {
 
     connect (option) {
         return new Promise((resolve) => {
+            this.ftpClient = new Client();
             option && this.initOptions(option);
 
             // toDo：
+            Logger.info(`[ftp] connect ftp://${this.options.user}@${this.options.host}:${this.options.port}`);
             console.log(`[ftp] connect ftp://${this.options.user}@${this.options.host}:${this.options.port}`);
 
             let  {host, port, user, password} = this.options;
-            ftpClient.connect({ host, port, user, password});
+            this.ftpClient.connect({ host, port, user, password});
 
-            ftpClient.on('ready', async () => {
+            this.ftpClient.on('ready', async () => {
                 Logger.info(`[ftp] connect ftp://${this.options.user}@${this.options.host}:${this.options.port} success`);
-                let fileList = await this.getFileList(DEFAULT_PATH)
-                resolve({
-                    success: true,
-                    data: fileList
-                });
+                resolve(true);
             });
 
-            ftpClient.on('error', e => {
+            this.ftpClient.on('error', e => {
                 throw new Error(`[ftp] connect error. ${e}`);
             });
         });
@@ -66,24 +63,16 @@ class Ftp extends BaseUploader {
      * 断开连接
      */
     exit () {
-        ftpClient.end();
+        this.ftpClient.end();
     }
 
     /**
      * 获取文件夹列表(指定路径获取文件列表)
      * @param {String} dirPath 
      */
-    async getFileList (dirPath) {
-
-
-        // toDo: 直接获取就行，不需要跳转
-        if (dirPath) {
-            let {err : cwdErr, dir } = await this.cwd(dirPath);          
-            throw new Error(`[ftp] cwd() error. ${cwdErr}`);
-        }
-
+    async getFileList (dirPath = DEFAULT_PATH) {
         return new Promise((resolve) => {
-            ftpClient.list((err, list) => {
+            this.ftpClient.list(dirPath, true, (err, list) => {
                 if (err) {
                     Logger.error(`[ftp] getFileList ${dirPath} error`);
                     throw new Error(`[ftp] getFileList error. ${err}`);
@@ -101,7 +90,7 @@ class Ftp extends BaseUploader {
      */
     cwd (dirPath) {
         return new Promise((resolve) => {
-            ftpClient.cwd(dirPath, (err, dir) => {
+            this.ftpClient.cwd(dirPath, (err, dir) => {
 
                 if (err) {
                     Logger.error(`[ftp] cwd ${dirPath} error`);
@@ -123,7 +112,7 @@ class Ftp extends BaseUploader {
         let { err: ea, dir } = await this.cwd(dirPath);
 
         return new Promise((resolve, reject) => {
-            ftpClient.get(fileName, (err, rs) => {
+            this.ftpClient.get(fileName, (err, rs) => {
                 let ws = fs.createWriteStream(fileName);
                 rs.pipe(ws);
                 resolve({ err: err });
@@ -140,35 +129,8 @@ class Ftp extends BaseUploader {
     async uploadFile (currentFile, targetFilePath) {
         return new Promise(async (resolve, reject) => {
             let files = glob(currentFile);
-
-            this.uploadActionType(files, ACTION_TYPE.parallel, this._upload)
+            uploadActionType(files, ACTION_TYPE.parallel, this._upload)
         });
-    }
-
-    /**
-     * 上传方式的处理
-     * 只有两种方式
-     * @param {*} files     文件列表
-     * @param {*} action    方式
-     * @param {Function} callback (file)  回调函数
-     */
-    async uploadActionType (files, action, callback) {
-
-        // 并行
-        if (action === ACTION_TYPE.parallel) {
-            files.forEach(file => {
-                callback(file);
-            })
-            return;
-        }
-
-        for (let file of files) {
-            let res = await callback(file);
-
-            if (res !== file) {
-                break;
-            }
-        }
     }
 
 
@@ -210,7 +172,7 @@ class Ftp extends BaseUploader {
             }
 
             return new Promise((resolve, reject) => {
-                ftpClient.delete(fileName, (err, rs) => {
+                this.ftpClient.delete(fileName, (err, rs) => {
                     resolve({ err: err });
                 });
             });
@@ -218,7 +180,7 @@ class Ftp extends BaseUploader {
 
         if (folderPath) {
             return new Promise((resolve, reject) => {
-                ftpClient.rmdir(folderPath, true, (err, rs) => {
+                this.ftpClient.rmdir(folderPath, true, (err, rs) => {
                     resolve({ err: err });
                 });
             });
@@ -248,7 +210,7 @@ class Ftp extends BaseUploader {
             let targetPath = path.join(this.options.root, filePath);
 
             if (fs.statSync(filePath).isDirectory()) {
-                ftpClient.mkdir(targetPath, true, cb);
+                this.ftpClient.mkdir(targetPath, true, cb);
                 return;
             }
 
@@ -256,32 +218,14 @@ class Ftp extends BaseUploader {
             // let total = fs.statSync(filePath).size;
             // this.getSpeed(rs, total);
 
-            ftpClient.put(filePath, targetPath, cb);
+            this.ftpClient.put(filePath, targetPath, cb);
         });
     }
-
-    async startUpload () {
-        console.log(`[ftp] start upload files... root: ${this.options.root}`);
-        this.onStart();
-
-        return Promise.all(this.options.files.map(file => this._upload(file).then(() => {
-            this.onFileUpload(file);
-
-        }))).then(() => {
-            ftpClient.end();
-            this.onSuccess();
-
-        }).catch(e => {
-            ftpClient.end();
-            this.onFailure(e);
-
-        });
-    }
-
+    
     onDestroyed () {
-        if (ftpClient) {
-            ftpClient.destroy();
-            ftpClient = null;
+        if (this.ftpClient) {
+            this.ftpClient.destroy();
+            this.ftpClient = null;
         }
         super.onDestroyed();
     }

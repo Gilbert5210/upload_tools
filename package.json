@@ -7,13 +7,14 @@
     "scripts": {
         "start": "cross-env NODE_ENV=development nodemon --inspect ./app.js",
         "debugge": "cross-env NODE_ENV=development nodemon --inspect ./app.js",
-        "production": "cross-env NODE_ENV=production nodemon app.js"
+        "production": "cross-env NODE_ENV=production nodemon app.js",
+        "test": "jest"
     },
     "bin": {
         "zjy": "bin/ftpserve.js"
     },
     "resolutions": {
-        "graceful-fs": "4.2.3"
+        "graceful-fs": "4.2.4"
     },
     "dependencies": {
         "axios": "^0.19.0",

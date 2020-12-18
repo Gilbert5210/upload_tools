@@ -7,8 +7,12 @@ const chalk = require('chalk')          // 美化命令行
 async function connectFun (answers) {
     // 开始真正执行内部命令
     let res = await Ftp.connect(answers);
-    console.log('当前文件列表：', res.data.length);
-    console.dir(res.data);
+
+    if (res) {
+        let fileList = await Ftp.getFileList();
+        console.log('当前文件列表：', fileList.length);
+        console.dir(fileList);
+    }
     Ftp.exit();
 }
 
