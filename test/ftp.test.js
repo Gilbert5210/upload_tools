@@ -1,5 +1,5 @@
-let ftp = require('ftp');
 let FTPClient = require('../models/ftp');
+let ftp = require('ftp');
 let defaultMock = jest.fn();
 
 jest.mock('ftp', () => {
@@ -15,6 +15,12 @@ jest.mock('ftp', () => {
             mkdir: jest.fn(file => {})
         }
     })
+});
+
+beforeEach(() => {
+
+    // 测试之前 清除调用模拟构造函数和方法的记录
+    ftp.mockClear();
 });
 
 describe('测试ftp相关的功能函数', () => {

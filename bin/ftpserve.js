@@ -1,102 +1,41 @@
 #!/usr/bin/env node
 const Ftp = require('../models/ftp');
+const SFtp = require('../models/sftp');
 const program = require('commander');
 const inquirer = require('inquirer');
 const chalk = require('chalk')          // 美化命令行
+const {connectPromptList, askAction} = require('../models/inquirer_model/index');
+
+const serveMapping = {
+    ftp: Ftp,
+    sftp: SFtp
+};
 
 async function connectFun (answers) {
-    // 开始真正执行内部命令
-    let res = await Ftp.connect(answers);
+    let Serve = serveMapping[answers.connectType];
 
-    if (res) {
-        let fileList = await Ftp.getFileList();
-        console.log('当前文件列表：', fileList.length);
-        console.dir(fileList);
-    }
-    Ftp.exit();
+    let Client = new Serve(answers);
+    // 开始真正执行内部命令
+    let res = await Client.connect();
+    Client.exit();
 }
 
 program
-    .command('ftp connect')
-    .description('输入ftp连接的基本信息来进行连接')
-    .option('-d, --default-config [defaultConfig]', 'ftp连接默认配置', false)
-    .action((options) => {
+    .command('connect')
+    .description('输入ftp、sftp连接的基本信息来进行连接')
+    .option('-d, --default-config [defaultConfig]', '使用默认配置', false)
+    .action(async (options) => {
 
         if (options.defaultConfig) {
             connectFun()
         }
 
-        var config = Object.assign({
-            host: '',
-            port: '',
-            user: '',
-            password: '',
-            root: '',
-            files: []
-        }, options);
-        let promps = [];
-
-        if(config.host === '') {
-            promps.push({
-                type: 'input',
-                name: 'host',
-                message: '请输入ftp地址',
-                validate: function (input){
-                    if(!input) {
-                        return '不能为空'
-                    }
-                    return true
-                }
-            })
-        }
-
-        if(config.port === '') {
-            promps.push({
-                type: 'input',
-                name: 'port',
-                message: '请输入端口号（默认使用21）',
-                default: 21
-            })
-        }
-
-        if(config.user !== 'string') {
-            promps.push({
-                type: 'input',
-                name: 'user',
-                message: '请输入用户名',
-                validate: function (input){
-                    if(!input) {
-                        return '不能为空'
-                    }
-                    return true
-                }
-            })
-        }
-
-        if(config.password === '') {
-            promps.push({
-                type: 'password',
-                name: 'password',
-                message: '请输入密码',
-                validate: function (input){
-                    if(!input) {
-                        return '不能为空'
-                    }
-                    return true
-                }
-            })
-        }
-
-        //  最终结果展示
-        inquirer.prompt(promps).then(function (answers) {
-            console.log('你输入的内容是：', answers)
-
-            connectFun(answers);
-        })
+        let answers = await askAction(connectPromptList);
+        connectFun(answers);
     });
 
 program
-    .command('ftp upload')
+    .command('upload')
     .description('上传文件')
     .requiredOption('-s, --source [source]>', 'source file')
     .requiredOption('-t, --target [target]', 'target path')
@@ -120,7 +59,7 @@ program
     });
 
 program
-    .command('ftp download')
+    .command('download')
     .description('下载文件')
     .requiredOption('-t, --target [target]', 'target path')
 

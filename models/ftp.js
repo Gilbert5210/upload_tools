@@ -31,7 +31,9 @@ class Ftp extends BaseUploader {
     assert () {
         ALLOW_BLANK_KEY.forEach(key => {
             if (!this.options[key]) {
-                throw new Error(`[ftp] options: "${key}" not found`);
+                let warnTipStr = (key) => `[ftp:assert] options: "${key}" not found in ${ALLOW_BLANK_KEY}`;
+                Logger.warn(this.options.user, warnTipStr);
+                throw new Error(warnTipStr);
             }
         })
     }
@@ -40,21 +42,21 @@ class Ftp extends BaseUploader {
         return new Promise((resolve) => {
             this.ftpClient = new Client();
             option && this.initOptions(option);
-
-            // toDo：
-            Logger.info(`[ftp] connect ftp://${this.options.user}@${this.options.host}:${this.options.port}`);
-            console.log(`[ftp] connect ftp://${this.options.user}@${this.options.host}:${this.options.port}`);
-
             let  {host, port, user, password} = this.options;
+            let infoTipStr = `[ftp] connect ftp://${user}@${host}:${port}`;
+            let errTipStr =  (e) => `[ftp] connect error. ${e}`;
+            Logger.info(user, infoTipStr);
+
             this.ftpClient.connect({ host, port, user, password});
 
             this.ftpClient.on('ready', async () => {
-                Logger.info(`[ftp] connect ftp://${this.options.user}@${this.options.host}:${this.options.port} success`);
+                Logger.info(user, `${infoTipStr} success`);
                 resolve(true);
             });
 
             this.ftpClient.on('error', e => {
-                throw new Error(`[ftp] connect error. ${e}`);
+                Logger.error(user, errTipStr(e));
+                throw new Error(errTipStr(e));
             });
         });
     }
@@ -64,6 +66,7 @@ class Ftp extends BaseUploader {
      */
     exit () {
         this.ftpClient.end();
+        Logger.info(this.options.user, `[ftp] connect end`);
     }
 
     /**
@@ -71,14 +74,16 @@ class Ftp extends BaseUploader {
      * @param {String} dirPath 
      */
     async getFileList (dirPath = DEFAULT_PATH) {
+        
         return new Promise((resolve) => {
             this.ftpClient.list(dirPath, true, (err, list) => {
+                let tipStr = `[ftp] getFileList ${dirPath}`;
                 if (err) {
-                    Logger.error(`[ftp] getFileList ${dirPath} error`);
-                    throw new Error(`[ftp] getFileList error. ${err}`);
+                    Logger.error(this.options.user, tipStr + err);
+                    throw new Error(tipStr + err);
                 }
 
-                Logger.info(`[ftp] getFileList ${dirPath} success`);
+                Logger.info(this.options.user, `${tipStr} success`);
                 resolve(list);
             });
         });
@@ -88,15 +93,15 @@ class Ftp extends BaseUploader {
      * 切换目录
      * @param {String} dirPath 
      */
-    cwd (dirPath) {
+    switchDirectory (dirPath) {
         return new Promise((resolve) => {
-            this.ftpClient.cwd(dirPath, (err, dir) => {
+            this.ftpClient.switchDirectory(dirPath, (err, dir) => {
 
                 if (err) {
-                    Logger.error(`[ftp] cwd ${dirPath} error`);
+                    Logger.error(this.options.user, `[ftp] switchDirectory ${dirPath} error`);
                 }
 
-                Logger.info(`[ftp] cwd ${dirPath} success`);
+                Logger.info(this.options.user, `[ftp] switchDirectory ${dirPath} success`);
                 resolve({ err: err, dir: dir });
             })
         });
@@ -109,7 +114,7 @@ class Ftp extends BaseUploader {
     async downloadFile (filePath) {
         let dirPath = path.dirname(filePath);
         let fileName = path.basename(filePath);
-        let { err: ea, dir } = await this.cwd(dirPath);
+        let { err: ea, dir } = await this.switchDirectory(dirPath);
 
         return new Promise((resolve, reject) => {
             this.ftpClient.get(fileName, (err, rs) => {
@@ -125,30 +130,32 @@ class Ftp extends BaseUploader {
      * 目的必须添加相应的文件名称，不然是没办法创建成功的，也是我的疑问，要怎么优化
      * @param {*} currentFile 
      * @param {*} targetFilePath 
+     * @param {*} actionType 默认使用并行的方式
      */
-    async uploadFile (currentFile, targetFilePath) {
+    async uploadFile (currentFile, targetFilePath, actionType = ACTION_TYPE.parallel) {
+
         return new Promise(async (resolve, reject) => {
             let files = glob(currentFile);
-            uploadActionType(files, ACTION_TYPE.parallel, this._upload)
+            let result = await uploadActionType(files, actionType, targetFilePath, this._startUpload)
+            console.log('返回结果：', result, files);
+            resolve(result, files);
         });
     }
 
 
     /**
      * 获取上传下载的进度
-     * @param {*} file 
+     * @param {*} rsFile 可读流文件类型
      * @param {*} total   文件大小总数 
      */
-    getSpeed (file, total) {
+    getSpeed (rsFile, total, filePath) {
         return new Promise((resolve) => {
             let cur = 0;
 
-            file.on('data', function (d) {
+            rsFile.on('data', function (d) {
                 cur += d.length;
                 let percent = ((cur / total) * 100).toFixed(1);
-
-                console.log("loading：" + percent + '% complete');
-
+                console.log(`${filePath} uploading：-------------- ${percent}%`);
                 resolve(percent)
             });
         });
@@ -166,7 +173,7 @@ class Ftp extends BaseUploader {
         if (filePath) {
             let dirPath = path.dirname(filePath);
             let fileName = path.basename(filePath);
-            let { err: targetDirErr, dir } = await this.cwd(dirPath);
+            let { err: targetDirErr, dir } = await this.switchDirectory(dirPath);
             if (targetDirErr) {
                 return Promise.resolve({ err: targetDirErr });
             }
@@ -190,33 +197,36 @@ class Ftp extends BaseUploader {
     /**
      * 文件上传到服务器
      * @param {*} filePath 
+     * @param {*} targetFilePath 
      * @returns {*} 成功的话返回当前的路径，失败返回报错信息
      */
-    _upload (filePath) {
+    _startUpload (filePath, targetFilePath) {
 
         // toDo: 这里需要做些文件相关约束判断
 
         return new Promise((resolve, reject) => {
             let cb = err => {
                 if (err) {
-                    Logger.error(`[ftp] ${filePath} 文件上传失败`);
+                    Logger.error(this.options.user, `[ftp] ${filePath} 文件上传失败`);
                     return reject(err);
                 }
 
-                Logger.error(`[ftp] ${filePath} 文件上传成功`);
+                Logger.error(this.options.user, `[ftp] ${filePath} 文件上传成功`);
                 resolve(filePath);
             };
-
-            let targetPath = path.join(this.options.root, filePath);
+            
+            targetFilePath = targetFilePath ||  this.options.root;
+            let targetPath = path.join(targetFilePath, filePath);
 
             if (fs.statSync(filePath).isDirectory()) {
                 this.ftpClient.mkdir(targetPath, true, cb);
                 return;
             }
 
-            // // 添加进度条
-            // let total = fs.statSync(filePath).size;
-            // this.getSpeed(rs, total);
+            // 添加进度条
+            let rs = fs.createReadStream(filePath);
+            let total = fs.statSync(filePath).size;
+            this.getSpeed(rs, total, filePath);
 
             this.ftpClient.put(filePath, targetPath, cb);
         });
@@ -232,4 +242,4 @@ class Ftp extends BaseUploader {
 }
 
 
-module.exports = new Ftp();
+module.exports = Ftp;

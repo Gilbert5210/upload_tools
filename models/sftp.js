@@ -7,8 +7,6 @@ let fs = require('fs');
 let Client = require('ssh2-sftp-client');
 let BaseUploader = require('./base_uploader');
 let { glob } = require('./util');
-let Sftp = new Client();
-
 class Sftp extends BaseUploader {
 
     initOptions (options) {
@@ -34,8 +32,10 @@ class Sftp extends BaseUploader {
     }
 
     connect () {
+        this.Sftp = new Client();
+
         console.log(`[sftp] connect sftp://${this.options.host}:${this.options.port}/${this.options.root}`);
-        return Sftp.connect({
+        return this.Sftp.connect({
             host: this.options.host,
             port: this.options.port,
             username: this.options.user,
@@ -62,22 +62,22 @@ class Sftp extends BaseUploader {
             dirpath = '/'
         }
 
-        return await Sftp.list(dirpath, pattern);
+        return await this.Sftp.list(dirpath, pattern);
     }
 
     //下载文件
     async downloadFile (filePath, targetPath) {
-        await Sftp.get(filePath, targetPath);
+        await this.Sftp.get(filePath, targetPath);
     }
 
     // 上传文件(找不到)
     _upload (filePath) {
         let remotePath = path.posix.join(this.options.root, filePath);
         if (fs.statSync(filePath).isDirectory()) {
-            return Sftp.mkdir(remotePath, true);
+            return this.Sftp.mkdir(remotePath, true);
         }
 
-        return Sftp.put(filePath, remotePath);
+        return this.Sftp.put(filePath, remotePath);
     }
 
 
@@ -87,7 +87,7 @@ class Sftp extends BaseUploader {
             console.error('当前路径不存在');
             return;
         }
-        await Sftp.delete(remoteFile);
+        await this.Sftp.delete(remoteFile);
     }
 
     /**
@@ -96,7 +96,7 @@ class Sftp extends BaseUploader {
      * @returns {Boolean} 返回true | false
      */
     async exists (remotePath) {
-        return await Sftp.exists(remotePath);
+        return await this.Sftp.exists(remotePath);
     }
 
     async startUpload () {
@@ -117,9 +117,9 @@ class Sftp extends BaseUploader {
     }
 
     onDestroyed () {
-        if (Sftp) {
-            Sftp.end();
-            Sftp = null;
+        if (this.Sftp) {
+            this.Sftp.end();
+            this.Sftp = null;
         }
         super.onDestroyed();
     }
