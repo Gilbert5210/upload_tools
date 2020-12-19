@@ -4,34 +4,18 @@ const SFtp = require('../models/sftp');
 const program = require('commander');
 const inquirer = require('inquirer');
 const chalk = require('chalk')          // 美化命令行
-const {connectPromptList, askAction} = require('../models/inquirer_model/index');
-
-const serveMapping = {
-    ftp: Ftp,
-    sftp: SFtp
-};
-
-async function connectFun (answers) {
-    let Serve = serveMapping[answers.connectType];
-
-    let Client = new Serve(answers);
-    // 开始真正执行内部命令
-    let res = await Client.connect();
-    Client.exit();
-}
+const {actionType, askAction} = require('../models/inquirer_model/index');
 
 program
     .command('connect')
     .description('输入ftp、sftp连接的基本信息来进行连接')
     .option('-d, --default-config [defaultConfig]', '使用默认配置', false)
     .action(async (options) => {
-
+        let type = actionType.connect;
         if (options.defaultConfig) {
-            connectFun()
+            type = actionType.defaultConnect;
         }
-
-        let answers = await askAction(connectPromptList);
-        connectFun(answers);
+        askAction(type);
     });
 
 program

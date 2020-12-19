@@ -28,7 +28,7 @@ describe('测试ftp相关的功能函数', () => {
         let result = FTPClient.connect()
 
         expect(result).toEqual({
-            
+
         })
     }),
 
