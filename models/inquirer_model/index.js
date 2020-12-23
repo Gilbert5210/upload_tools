@@ -192,6 +192,10 @@ async function deleteFile (answers) {
     askAction(actionType.action);
 }
 
+async function logout () {
+    await Client.logout();
+}
+
 
 function action (type, answers) {
     console.log('action数据：', type, answers);
@@ -218,21 +222,41 @@ function action (type, answers) {
         case actionType.logout:
             logout();
             break;
+        case actionType.action:
+            askActionF(answers.actionKey);
+            break;
     }
 }
 
-async function askAction (type) {
-    let answers  = await inquirer.prompt(promptListMapping[type])
-
-    if (type === actionType.action) {
-        type = answers.actionKey;
+let askActionF = async (type) => {
+    let answers = {};
+    if (promptListMapping.hasOwnProperty(type)) {
         answers  = await inquirer.prompt(promptListMapping[type])
-
-        console.log('当前：', type, answers);
-        action(type, answers);
-        return;
     }
+
+    console.log('当前获取到的答案是什么', answers, type);   
     action(type, answers);
+};
+
+async function askAction (type) {
+    await askActionF(type);
+
+    // if (type === actionType.action) {
+    //     await askAction(type);
+    //     return;
+    // }
+
+
+
+    // if (type === actionType.action) {
+    //     answers  = await inquirer.prompt(promptListMapping[type])
+
+    //     console.log('当前：', type, answers);
+    //     action(type, answers);
+    //     return;
+    // }
+
+    // action(type, answers);
 }
 
 

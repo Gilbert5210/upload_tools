@@ -2,7 +2,16 @@
  * Created by uedc on 2020/9/14.
  */
 
+const { option } = require('commander');
 let EventEmitter = require('events');
+const { promises } = require('fs');
+let {glob} = require('../lib/util');
+const {logger:Logger} = require('../lib/Logger');
+
+const ACTION_TYPE = {           // 上传下载发生方式
+    parallel: 'parallel',       // 并行
+    serial: 'serial'            // 串行
+}
 
 class BaseUploader extends EventEmitter {
 
@@ -25,6 +34,44 @@ class BaseUploader extends EventEmitter {
         // this.onReady();
     }
 
+    
+    /**
+     * 获取上传下载的进度
+     * @param {*} rsFile 可读流文件类型
+     * @param {*} total   文件大小总数 
+     * @param {*} filePath   
+     */
+    getSpeed (rsFile, total, filePath) {
+        return new Promise((resolve) => {
+            let cur = 0;
+
+            rsFile.on('data', function (d) {
+                cur += d.length;
+                let percent = ((cur / total) * 100).toFixed(1);
+                console.log(`${filePath} uploading：-------------- ${percent}%`);
+                resolve(percent)
+            });
+        });
+    }
+
+    /**
+     * 将文件上传到ftp目标地址
+     * 目的必须添加相应的文件名称，不然是没办法创建成功的，也是我的疑问，要怎么优化
+     * @param {*} currentFile 
+     * @param {*} targetFilePath 
+     * @param {*} actionType 默认使用并行的方式
+     */
+    async uploadFile (currentFile, targetFilePath, actionType = ACTION_TYPE.parallel) {
+        let files = glob(currentFile);
+
+        // let dirList = getDirectory(files, remote);
+        // let fileList = getFiles(files);
+
+        
+
+        await this.uploadActionType(files, actionType, targetFilePath)
+    }
+
     /**
      * 派生类必须实现，有几个注意事项：
      * 1. 启动前需要调用 onStart()
@@ -35,13 +82,56 @@ class BaseUploader extends EventEmitter {
      */
     async startUpload () {
         throw new Error(`[BaseUploader] Method: startUpload will be override`);
+    }
 
-        // this.onStart();
-        // for (let file of this.options.files) {
-        //     this.onFileUpload(file);
-        // }
-        // this.onSuccess();
-        // this.onFailure();
+    /**
+     * 上传方式的处理
+     * 只有两种方式
+     * @param {*} files     文件列表
+     * @param {*} action    方式
+     * @param {*} targetFilePath    目标地址
+     * @param {Function} callback (file)  回调函数
+     * @param {Object} client (file)  ftp链接实例
+     * @returns {Array} 
+     */
+    async uploadActionType (files, action, targetFilePath) {
+
+        // 并行
+        if (action === ACTION_TYPE.parallel) {
+            await this.parallelUpload(files, targetFilePath);
+            return;
+        }
+        await this.serialUpload(files, targetFilePath);
+    }
+    
+    /**
+     * 并行上传
+     * @param {*} files 
+     * @param {*} targetFilePath 
+     */
+    parallelUpload (files, targetFilePath) {
+        return new Promise((resolve, reject) => {
+            Promise.all([files.map(file=> this.startUpload(file, targetFilePath))]).then(() => {
+                resolve();
+            }).catch(err => {
+                reject(err);
+            });
+        })
+    }
+
+    /**
+     * 串行上传
+     * @param {*} files 
+     * @param {*} targetFilePath 
+     */
+    async serialUpload (files, targetFilePath) {
+        for (let file of files) {
+            let res = await this.startUpload(file, targetFilePath);
+
+            if (res !== file) {
+                continue;
+            }
+        }
     }
 
     onReady () {
@@ -80,6 +170,16 @@ class BaseUploader extends EventEmitter {
      */
     onDestroyed () {
         this.emit('upload:destroy');
+    }
+
+    
+    /**
+     * 断开连接
+     */
+    logout () {
+        this.ftpClient.end();
+        this.destroy();
+        Logger.info('[ftp] logout');
     }
 
     destroy () {
