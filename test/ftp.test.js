@@ -1,16 +1,24 @@
 let FTPClient = require('../models/ftp');
 let ftp = require('ftp');
-let defaultMock = jest.fn();
+const ERROR = 0;
+const defaultMock = jest.fn(() => {});
 
 jest.mock('ftp', () => {
     return jest.fn().mockImplementation(() => {
         return {
-            connect: jest.fn(() => Promise),
-            delete: jest.fn(file => {}),
+            connect: jest.fn(() => {}),
+            delete: jest.fn((file, cb) => {
+                if (!file) {
+                    cb?.({code: ERROR});
+                }
+            }),
             put: jest.fn((file, remoteFile, cb) => {cb & cb()}),
             get: jest.fn(file => {}),
-            on: defaultMock,
-            destroy: defaultMock,
+            on: jest.fn((status, cb) => {
+                if (status) {
+                    cb?.();
+                }
+            }),
             rmdir: jest.fn(file => {}),
             mkdir: jest.fn(file => {})
         }
@@ -24,12 +32,11 @@ beforeEach(() => {
 });
 
 describe('测试ftp相关的功能函数', () => {
-    test('连接测试', () => {
-        let result = FTPClient.connect()
+    it('连接测试', async () => {
+        let ftpClient = new FTPClient();
+        ftpClient.connect();
 
-        expect(result).toEqual({
-
-        })
+        expect(defaultMock).toBeCalled();
     }),
 
     test('文件列表获取测试', () => {

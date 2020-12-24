@@ -68,7 +68,6 @@ class Ftp extends BaseUploader {
      * @param {String} dirPath 
      */
     async getFileList (dirPath = DEFAULT_PATH) {
-
         Logger.info(`正在查找${dirPath}文件列表信息`);
         
         return new Promise((resolve) => {
@@ -127,13 +126,10 @@ class Ftp extends BaseUploader {
      * @param {*} filePath 
      * @param {*} targetFilePath 
      * @param {*} client  ftp连接实例
+     * @param {*} hasDirectoryFlag  是否存在文件夹
      * @returns {*} 成功的话返回当前的路径，失败返回报错信息
      */
-    startUpload (filePath, targetFilePath) {
-        if (!fs.existsSync(filePath)) {
-            Logger.error(`${filePath} 文件不存在！`);
-            return;
-        }
+    startUpload (filePath, targetFilePath, hasDirectoryFlag) {
 
         this.onStart();
 
@@ -143,32 +139,39 @@ class Ftp extends BaseUploader {
             let cb = err => {
                 if (err) {
                     Logger.error(`[ftp] ${filePath} 文件上传失败. ${err}`);
-                    return reject(err);
+                    reject(err);
+                    return;
                 }
-
+                
                 Logger.info(`[ftp] ${filePath} 文件上传成功`);
                 resolve(filePath);
             };
+
             
             console.log('当函数传值为：filePath/targetFilePath', filePath, targetFilePath);
 
-            let baseName = path.basename(filePath);
+            let remotePath;
             let target = targetFilePath ||  this.options.root;
-            let remotePath = path.join(target, baseName);
+
+            if (!hasDirectoryFlag) {
+                let baseName = path.basename(filePath);
+                remotePath = path.join(target, baseName);   
+            } else {
+                remotePath = path.join(target, filePath);
+            }
 
             console.log('当前远程文件', remotePath);
 
             if (fs.statSync(filePath).isDirectory()) {
                 this.ftpClient.mkdir(remotePath, true, cb);
-                return;
+            } else {
+                // 添加进度条
+                let rs = fs.createReadStream(filePath);
+                let total = fs.statSync(filePath).size;
+                this.getSpeed(rs, total, filePath);
+
+                this.ftpClient.put(filePath, remotePath, cb);
             }
-
-            // // 添加进度条
-            let rs = fs.createReadStream(filePath);
-            let total = fs.statSync(filePath).size;
-            this.getSpeed(rs, total, filePath);
-
-            this.ftpClient.put(filePath, remotePath, cb);
         });
     }
 

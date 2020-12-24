@@ -5,8 +5,9 @@
 const { option } = require('commander');
 let EventEmitter = require('events');
 const { promises } = require('fs');
-let {glob} = require('../lib/util');
+let {glob, existFiled, hasDirectoryPath} = require('../lib/util');
 const {logger:Logger} = require('../lib/Logger');
+const { resolve } = require('path');
 
 const ACTION_TYPE = {           // 上传下载发生方式
     parallel: 'parallel',       // 并行
@@ -54,6 +55,21 @@ class BaseUploader extends EventEmitter {
         });
     }
 
+    // /**
+    //  * 判断服务端文件时候存在
+    //  * 巧妙的使用get的的错误来判断
+    //  * @param {*} remotePath 
+    //  */
+    // isExistFiled (remotePath) {
+    //     return new Promise((resolve) => {
+    //         this.ftpClient.get(remotePath, (err) => {
+
+    //             console.log('isExistFiled-------', err);
+    //             resolve(!err);
+    //         })
+    //     })
+    // }
+
     /**
      * 将文件上传到ftp目标地址
      * 目的必须添加相应的文件名称，不然是没办法创建成功的，也是我的疑问，要怎么优化
@@ -62,14 +78,15 @@ class BaseUploader extends EventEmitter {
      * @param {*} actionType 默认使用并行的方式
      */
     async uploadFile (currentFile, targetFilePath, actionType = ACTION_TYPE.parallel) {
+
+        if (!existFiled(currentFile)) {
+            return;
+        }
+
         let files = glob(currentFile);
+        let hasDirectoryFlag = hasDirectoryPath(files);
 
-        // let dirList = getDirectory(files, remote);
-        // let fileList = getFiles(files);
-
-        
-
-        await this.uploadActionType(files, actionType, targetFilePath)
+        await this.uploadActionType(files, actionType, targetFilePath, hasDirectoryFlag)
     }
 
     /**
@@ -91,27 +108,36 @@ class BaseUploader extends EventEmitter {
      * @param {*} action    方式
      * @param {*} targetFilePath    目标地址
      * @param {Function} callback (file)  回调函数
-     * @param {Object} client (file)  ftp链接实例
+     * @param {Object} hasDirectoryPath 是否存在文件夹
      * @returns {Array} 
      */
-    async uploadActionType (files, action, targetFilePath) {
+    async uploadActionType (files, action, targetFilePath, hasDirectoryPath) {
+        
+        console.log('当前文件列表：', files, hasDirectoryPath);
 
         // 并行
         if (action === ACTION_TYPE.parallel) {
-            await this.parallelUpload(files, targetFilePath);
+            await this.parallelUpload(files, targetFilePath, hasDirectoryPath);
             return;
         }
-        await this.serialUpload(files, targetFilePath);
+        await this.serialUpload(files, targetFilePath, hasDirectoryPath);
     }
     
     /**
      * 并行上传
      * @param {*} files 
      * @param {*} targetFilePath 
+     * @param {*} hasDirectoryPath 
      */
-    parallelUpload (files, targetFilePath) {
+    parallelUpload (files, targetFilePath, hasDirectoryPath) {
+        console.log('parallelUpload', files);
+
         return new Promise((resolve, reject) => {
-            Promise.all([files.map(file=> this.startUpload(file, targetFilePath))]).then(() => {
+            Promise.all([files.map(file=> this.startUpload(file, targetFilePath, hasDirectoryPath))]).then(() => {
+
+                // toDo: 需要询问一下这里的问题
+                console.log('-------Promise.all  ----success');  
+
                 resolve();
             }).catch(err => {
                 reject(err);
@@ -123,10 +149,11 @@ class BaseUploader extends EventEmitter {
      * 串行上传
      * @param {*} files 
      * @param {*} targetFilePath 
+     * @param {*} hasDirectoryPath 
      */
-    async serialUpload (files, targetFilePath) {
+    async serialUpload (files, targetFilePath, hasDirectoryPath) {
         for (let file of files) {
-            let res = await this.startUpload(file, targetFilePath);
+            let res = await this.startUpload(file, targetFilePath, hasDirectoryPath);
 
             if (res !== file) {
                 continue;
@@ -179,7 +206,7 @@ class BaseUploader extends EventEmitter {
     logout () {
         this.ftpClient.end();
         this.destroy();
-        Logger.info('[ftp] logout');
+        Logger.info('[ftp] logout success');
     }
 
     destroy () {
