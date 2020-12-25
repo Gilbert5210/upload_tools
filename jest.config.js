@@ -2,16 +2,12 @@ module.exports = {
     rootDir: './test/', // 测试目录
 
     // 对jsx、tsx、js、ts文件采用babel-jest进行转换
-    transform: {
-        '^.+\\.[t|j]sx?$': 'babel-jest',
-    },
+    transform: {},
+
     testRegex: '(/__tests__/.*|(\\.|/)(test|spec))\\.[jt]s?$',
-    moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
     collectCoverage: true, // 统计覆盖率
 
     testEnvironment: 'jsdom', // 测试环境，默认为”jsdom“
-
-    collectCoverageFrom: ['**/*.ts'],
 
     coverageDirectory: './coverage', // 测试覆盖率的文档
 

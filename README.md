@@ -2,7 +2,7 @@
 
 ## 配置项
 
-### .uedc.config.js
+### ftp.config.js
 
 
 |字段名|类型|默认值|描述|

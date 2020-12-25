@@ -6,7 +6,7 @@ let path = require('path');
 let fs = require('fs');
 let Client = require('ssh2-sftp-client');
 let BaseUploader = require('./base_uploader');
-let { glob } = require('../lib/util');
+let { glob } = require('../util/util');
 class Sftp extends BaseUploader {
 
     initOptions (options) {

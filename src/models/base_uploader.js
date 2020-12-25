@@ -5,8 +5,8 @@
 const { option } = require('commander');
 let EventEmitter = require('events');
 const { promises } = require('fs');
-let {glob, existFiled, hasDirectoryPath} = require('../lib/util');
-const {logger:Logger} = require('../lib/Logger');
+let {glob, existFiled, hasDirectoryPath} = require('../util/util');
+const {logger:Logger} = require('../util/logger');
 const { resolve } = require('path');
 
 const ACTION_TYPE = {           // 上传下载发生方式
@@ -133,11 +133,9 @@ class BaseUploader extends EventEmitter {
         console.log('parallelUpload', files);
 
         return new Promise((resolve, reject) => {
-            Promise.all([files.map(file=> this.startUpload(file, targetFilePath, hasDirectoryPath))]).then(() => {
+            Promise.all(files.map(file=> this.startUpload(file, targetFilePath, hasDirectoryPath))).then(() => {
 
-                // toDo: 需要询问一下这里的问题
-                console.log('-------Promise.all  ----success');  
-
+                this.onSuccess();
                 resolve();
             }).catch(err => {
                 reject(err);

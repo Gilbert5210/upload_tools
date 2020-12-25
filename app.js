@@ -9,9 +9,9 @@ let cors = require('koa2-cors');
 let staticRouter = require('koa-static-router');
 let staticFiles = require('./middleware/static_files');
 
-let logger = require('./lib/logger');
+let logger = require('./src/util/logger');
 let appConfig = require('./config.app');
-let { API_PREFIX } = require('./lib/status_code');
+let { API_PREFIX } = require('src/util/status_code');
 
 app.use(staticRouter([{
     dir: 'widgets',

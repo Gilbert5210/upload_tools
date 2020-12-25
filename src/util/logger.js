@@ -1,6 +1,6 @@
 let log4js = require('log4js');
 let address = require('address');
-let appConfig = require('../config.app');
+let appConfig = require('../../config.app');
 const currentIP = address.ip();
 
 // %X{ip}，就是用于获取context中ip属性的方法了，ip是前面addContext中的key，这个千万要对应上

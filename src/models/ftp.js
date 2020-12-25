@@ -6,10 +6,9 @@ let path = require('path');
 let fs = require('fs');
 let Client = require('ftp');
 let BaseUploader = require('./base_uploader');
-let { glob} = require('../lib/util');
-let {FTP_OPTION} = require('./config');                 // 配置项的默认连接信息
-const {logger:Logger, setUserName} = require('../lib/Logger');
-const { tar } = require('compressing');
+let { glob} = require('../util/util');
+let {FTP_OPTION} = require('../../config.app');                 // 配置项的默认连接信息
+const {logger:Logger, setUserName} = require('../util/logger');
 
 const ALLOW_BLANK_KEY = ['host', 'port', 'user', 'password'];
 const DEFAULT_PATH = '/zjy';                // 默认路径
@@ -19,6 +18,11 @@ const ACTION_TYPE = {           // 上传下载发生方式
 }
 
 class Ftp extends BaseUploader {
+
+    constructor (options = {}) {
+        super(options);
+        this.ftpClient = new Client();
+    }
 
     initOptions (options) {
         this.options = Object.assign(FTP_OPTION, options);
@@ -40,10 +44,8 @@ class Ftp extends BaseUploader {
         })
     }
 
-    connect (option) {
+    connect () {
         return new Promise((resolve) => {
-            this.ftpClient = new Client();
-            option && this.initOptions(option);
             let  {host, port, user, password} = this.options;
             let infoTipStr = `[ftp] connect ftp://${user}@${host}:${port}`;
             let errTipStr =  (e) => `[ftp] connect error. ${e}`;
@@ -142,7 +144,7 @@ class Ftp extends BaseUploader {
                     reject(err);
                     return;
                 }
-                
+
                 Logger.info(`[ftp] ${filePath} 文件上传成功`);
                 resolve(filePath);
             };

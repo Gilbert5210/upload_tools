@@ -3,7 +3,7 @@ let path = require('path');
 
 let multer = require('koa-multer');
 let { checkLoginToken } = require('../lib/util');
-let { API_PREFIX } = require('../lib/status_code');
+let { API_PREFIX } = require('../src/util/status_code');
 
 let controlleDir = path.resolve(__dirname, '..') + '/controller';
 

@@ -1,8 +1,6 @@
 let fs = require('fs');
 let path = require('path');
-const request = require('request');
 let {logger} = require('./logger');
-let axios = require('axios');
 let glob = require('glob');
 
 // 删除整个目录

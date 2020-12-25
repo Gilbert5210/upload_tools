@@ -1,29 +1,31 @@
-let FTPClient = require('../models/ftp');
+let FTPClient = require('../src/models/ftp');
 let ftp = require('ftp');
+
 const ERROR = 0;
+const SUCCES = 1;
 const defaultMock = jest.fn(() => {});
 
-jest.mock('ftp', () => {
-    return jest.fn().mockImplementation(() => {
-        return {
-            connect: jest.fn(() => {}),
-            delete: jest.fn((file, cb) => {
-                if (!file) {
-                    cb?.({code: ERROR});
-                }
-            }),
-            put: jest.fn((file, remoteFile, cb) => {cb & cb()}),
-            get: jest.fn(file => {}),
-            on: jest.fn((status, cb) => {
-                if (status) {
-                    cb?.();
-                }
-            }),
-            rmdir: jest.fn(file => {}),
-            mkdir: jest.fn(file => {})
-        }
-    })
-});
+jest.mock('ftp', () => jest.fn())
+
+ftp.mockImplementation(() => {
+    return {
+        connect: defaultMock,
+        delete: jest.fn((file, cb) => {
+            if (!file) {
+                cb?.({code: ERROR});
+            }
+        }),
+        put: jest.fn((file, remoteFile, cb) => {cb & cb()}),
+        get: jest.fn(file => {}),
+        on: jest.fn((status, cb) => {
+            if (status === 'ready') {
+                cb?.({code: SUCCES});
+            }
+        }),
+        rmdir: jest.fn(file => {}),
+        mkdir: jest.fn(file => {})
+    }
+})
 
 beforeEach(() => {
 
@@ -34,9 +36,16 @@ beforeEach(() => {
 describe('测试ftp相关的功能函数', () => {
     it('连接测试', async () => {
         let ftpClient = new FTPClient();
-        ftpClient.connect();
+        let result = await ftpClient.connect();
 
-        expect(defaultMock).toBeCalled();
+        console.log('result:----6666666', result);
+
+        expect(defaultMock).toHaveBeenCalledTimes(1);
+        expect(result).toBe(true);
+    }),
+
+    test('文件上传测试', () => {
+        
     }),
 
     test('文件列表获取测试', () => {
@@ -44,10 +53,6 @@ describe('测试ftp相关的功能函数', () => {
     }),
 
     test('文件下载测试', () => {
-        
-    }),
-
-    test('文件上传测试', () => {
         
     }),
 

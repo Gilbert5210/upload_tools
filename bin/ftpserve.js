@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-const Ftp = require('../models/ftp');
-const SFtp = require('../models/sftp');
+const Ftp = require('../src/models/ftp');
+const SFtp = require('../src/models/sftp');
 const program = require('commander');
-const inquirer = require('inquirer');
 const chalk = require('chalk')          // 美化命令行
-const {actionType, askAction} = require('../models/inquirer_model/index');
+const {actionType, askAction} = require('../src/models/inquirer_model/index');
 
 program
     .command('connect')
