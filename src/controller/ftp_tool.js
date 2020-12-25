@@ -5,7 +5,7 @@
 let fs = require('fs');
 let path = require('path');
 let ftpClient = require('../models/ftp');
-let Response = require('../lib/response');
+let Response = require('../util/response');
 
 class FtpTools {
 

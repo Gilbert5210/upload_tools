@@ -3,20 +3,33 @@
  */
 
 let path = require('path');
-let widgetPath = path.resolve(__dirname, './widgets');
-let dataPath = path.resolve(__dirname, './data');
-let screenDataPath = path.resolve(__dirname, './data/screen');
+/**
+ * ftp服务器的默认配置
+ */
+const FTP_OPTION = {
+    host: '47.107.157.97',
+    port: 21,
+    user: 'ftp',
+    password: 'Admin123@',
+    root: '/zjy',
+    files: []
+};
 
-if (process.env.NODE_ENV === 'development') {
-    dataPath = 'data';
-    screenDataPath = './data/screen';
+// sftp 服务器的默认配置
+const SFTP_OPTION = {
+    host: '47.107.157.97',
+    port: 22,
+    user: 'sftp',
+    password: 'Admin123@',
+    root: '/zjy',
+    files: []
 }
 
+
+
 module.exports = {
-    product: 'aBDI', // 所合入的产品线
     server_port: 5001, // 服务器端口
-    widget_path: widgetPath,
-    data_path: dataPath,
-    screen_data_path: screenDataPath,
-    log_path: path.resolve(__dirname, './logs/cheese.log')
+    log_path: path.resolve(__dirname, './logs/cheese.log'),
+    FTP_OPTION,
+    SFTP_OPTION
 };

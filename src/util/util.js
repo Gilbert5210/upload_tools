@@ -1,11 +1,7 @@
 let fs = require('fs');
 let path = require('path');
-
-const request = require('request');
-
-let logger = require('./logger');
-
-let axios = require('axios');
+let {logger} = require('./logger');
+let glob = require('glob');
 
 // 删除整个目录
 function deleteDir (dir) {
@@ -114,94 +110,51 @@ function copyDirectory (src, dest) {
     logger.info(`[CopyDirectory]目录拷贝成功：源文件${src}， 目的文件${dest}`);
 }
 
-// 调试环境下获取前端页面调试地址
-function getUIServeAddress () {
-    let interfaces = require('os').networkInterfaces();
-
-    let IPAddress = '';
-    for (let devName in interfaces) {
-        if (interfaces.hasOwnProperty(devName)) {
-            let iface = interfaces[devName];
-
-            for (let i = iface.length - 1; i >= 0; i--){
-                let alias = iface[i];
-                if (alias.family === 'IPv4' &&
-                    alias.address !== '127.0.0.1' &&
-                    !alias.internal) {
-                    IPAddress = alias.address;
-                }
-            }
+function globFile (pattern) {
+    let p = path.join(process.cwd(), pattern);
+    if (fs.existsSync(p)) {
+        if (fs.statSync(p).isDirectory()) {
+            pattern += '/**';
+        } else {
+            return [pattern];
         }
     }
+    return glob.sync(pattern, {
 
-    return 'http://' + IPAddress + ':8980';
+    });
 }
 
-const CHECK_LOGIN_API = '/apps/secvisual/auth_manage/auth_manage/is_login';
-const NO_AUTH_CODE = 401;
+function globFiles (files) {
+    let ret = [];
+    files.forEach(file => {
+        ret.push(...globFile(file));
+    });
+    return ret;
+}
 
-async function checkLoginToken (ctx, next) {
-    let _ga = ctx.cookies.get('_ga');
-    let _gid = ctx.cookies.get('_gid');
-    let equipmentID = ctx.cookies.get('equipmentID');
-    let sess_id = ctx.cookies.get('sess_id');
+function parseFiles (files = []) {
+    if (!Array.isArray(files)) {
+        files = [
+            files
+        ];
+    }
+    return globFiles(files);
+}
 
-    let Referer = ctx.get('Referer');
+/**
+ * 校验当前文件路径时候存在
+ * @param {*} filePath 
+ */
+function existFiled (filePath) {
+    let existFlag = fs.existsSync(filePath);
+    if (!existFlag) {
+        Logger.error(`源文件 ${filePath} 不存在！`);
+    }
+    return existFlag;
+}
 
-    let cookies = {
-        _ga,
-        _gid,
-        equipmentID,
-        sess_id
-    };
-
-    await next();
-
-
-//     try {
-//         let isLogin = true;
-
-//         if (process.env.NODE_ENV !== 'development') {
-
-//             let host = ctx.protocol + '://' + ctx.hostname;
-
-//             let json = await new Promise((resolve, reject) => {
-//                 request(host + CHECK_LOGIN_API, {
-//                     strictSSL: false,
-//                     rejectUnauthorized: false,
-//                     headers: {
-//                         cookies,
-//                         Referer
-//                     }
-//                 }, (err, response, body) => {
-//                     if (err) {
-//                         reject(err);
-//                     } else {
-//                         resolve(body);
-//                     }
-//                 });
-//             });
-
-//             try {
-//                 json = JSON.parse(json);
-//             } catch (e) {
-//                 json = {};
-//                 logger.error(`[checkLoginToken]登录校验数据格式返回异常${e}`);
-//             }
-
-//             isLogin = json && json.success;
-//         }
-
-//         if (isLogin) {
-//             await next();
-//         } else {
-//             logger.error(`[checkLoginToken]登录已失效，请重新登录`);
-//             ctx.throw(NO_AUTH_CODE, 'no Authorization');
-//         }
-//     } catch (e) {
-//         logger.error(`[checkLoginToken]登录校验出现异常：${e}`);
-//         ctx.throw(NO_AUTH_CODE, 'no Authorization');
-//     }
+function hasDirectoryPath (files) {
+    return files.some(file => fs.statSync(file).isDirectory());
 }
 
 module.exports = {
@@ -209,7 +162,8 @@ module.exports = {
     mkdirPath,
     copyUploadFileToGoalDir,
     base64ImgByPath,
-    getUIServeAddress,
-    checkLoginToken,
-    copyDirectory
+    copyDirectory,
+    glob: parseFiles,
+    existFiled,
+    hasDirectoryPath
 };
