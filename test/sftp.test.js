@@ -1,7 +1,7 @@
-jest.mock('ftp');
+jest.mock('ssh2-sftp-client');
 
-let FTPClient = require('../src/models/ftp');
-let ftp = require('ftp');
+let SFTPClient = require('../src/models/sftp');
+let sftp = require('ssh2-sftp-client');
 
 const ERROR = 0;
 const SUCCES = 1;
@@ -17,7 +17,7 @@ const options = {
 let currentFile = './package.json';
 let remoteFile = '/zjy'
 
-ftp.mockImplementation(() => {
+sftp.mockImplementation(() => {
     return {
         connect: defaultMock,
         delete: jest.fn((file, cb) => {
@@ -54,33 +54,33 @@ beforeEach(() => {
     ftp.mockClear();
 });
 
-describe('测试ftp相关的功能函数', () => {
+describe('测试Sftp相关的功能函数', () => {
 
     test('连接成功验证测试', async () => {
-        let ftpClient = new FTPClient();
-        let result = await ftpClient.connect();
+        let client = new SFTPClient();
+        let result = await client.connect();
 
         expect(defaultMock).toHaveBeenCalledTimes(1);
         expect(result).toBe(true);
     }),
 
     // test('连接失败验证测试', async () => {
-    //     let ftpClient = new FTPClient(options);
-    //     await ftpClient.connect();
+    //     let SFTPClient = new SFTPClient(options);
+    //     await SFTPClient.connect();
 
     //     expect(defaultMock).toBe(false);
     // }),
 
     test('文件上传测试', async () => {
-        let ftpClient = new FTPClient(options);
+        let client = new SFTPClient(options);
 
-        let res = await ftpClient.startUpload(currentFile, remoteFile, false);
+        let res = await client.startUpload(currentFile, remoteFile, false);
         expect(res).toBe(currentFile);
     }),
 
     test('文件列表获取测试', async () => {
-        let ftpClient = new FTPClient();
-        let res = await ftpClient.getFileList();
+        let client = new SFTPClient();
+        let res = await client.getFileList();
 
         expect(res).toBeInstanceOf(Array);
     })

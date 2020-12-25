@@ -9,6 +9,7 @@ let {glob, existFiled, hasDirectoryPath} = require('../util/util');
 const {logger:Logger} = require('../util/logger');
 const { resolve } = require('path');
 
+const ALLOW_BLANK_KEY = ['host', 'port', 'user', 'password'];
 const ACTION_TYPE = {           // 上传下载发生方式
     parallel: 'parallel',       // 并行
     serial: 'serial'            // 串行
@@ -24,6 +25,21 @@ class BaseUploader extends EventEmitter {
     initOptions (options) {
         this.options = options;
     }
+
+    /**
+     * 校验连接必须字段
+     */
+    assert () {
+        let accept = ALLOW_BLANK_KEY.every(key => this.options[key]);
+
+        if (!accept) {
+            let warnTipStr = `[ftp:assert] options: "${key}" not found in ${ALLOW_BLANK_KEY}`;
+            Logger.warn(warnTipStr);
+        }
+
+        return accept;
+    }
+
 
     /**
      * 派生类必须实现，当连接成功后需要调用 this.onReady 接口

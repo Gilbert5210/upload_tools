@@ -7,47 +7,45 @@ let fs = require('fs');
 let Client = require('ssh2-sftp-client');
 let BaseUploader = require('./base_uploader');
 let { glob } = require('../util/util');
+let {SFTP_OPTION} = require('../../config.app');                 // 配置项的默认连接信息
+const DEFAULT_PATH = '/zjy';                // 默认路径
+const {logger:Logger, setUserName} = require('../util/logger');
+
 class Sftp extends BaseUploader {
 
-    initOptions (options) {
-        this.options = Object.assign({
-            host: '',
-            port: 22,
-            user: 'root',
-            password: '',
-            root: '/root/',
-            files: []
-        }, options);
-        this.options.files = glob(this.options.files);
-
-        // this.assert();
+    constructor (options = {}) {
+        super(options);
+        this.client = new Client();
     }
 
-    assert () {
-        ['host', 'port', 'user', 'password', 'root'].forEach(key => {
-            if (!this.options[key]) {
-                throw new Error(`[sftp] options: "${key}" not found`);
-            }
-        })
+    initOptions (options) {
+        this.options = Object.assign(SFTP_OPTION, options);
+        this.options.files = glob(this.options.files);
+        this.assert();
+
+        setUserName(this.options?.user || 'admin');
     }
 
     connect () {
-        this.sftpClient = new Client();
-
         console.log(`[sftp] connect sftp://${this.options.host}:${this.options.port}/${this.options.root}`);
-        return this.sftpClient.connect({
-            host: this.options.host,
-            port: this.options.port,
-            username: this.options.user,
-            password: this.options.password
-        }).then(async () => {
-            this.onReady();
-            let list = await this.getFileList();
-            console.log('当前文件列表为:', list.length);
-            console.dir(list);
-        }).catch((e => {
-            throw new Error(`[sftp] connect error. ${e}`);
-        }));
+        let  {host, port, user, password} = this.options;
+        let infoTipStr = `[sftp] connect ftp://${user}@${host}:${port}`;
+        let errTipStr =  (e) => `[sftp] connect error. ${e}`;
+        Logger.info(infoTipStr);
+
+        return new Promise((resolve) => {
+            this.client.connect({
+                host, port, user, password
+            }).then(() => {
+                this.onReady();
+                Logger.info(`${infoTipStr} success`);
+                resolve(true);
+    
+            }).catch((e => {
+                Logger.error(errTipStr(e));
+                resolve(false);
+            }));
+        });
     }
 
 
@@ -59,35 +57,89 @@ class Sftp extends BaseUploader {
      */
     async getFileList (dirpath, pattern) {
         if (!dirpath) {
-            dirpath = '/'
+            dirpath = DEFAULT_PATH
         }
 
-        return await this.sftpClient.list(dirpath, pattern);
+        Logger.info(`[sftp] 正在查找${dirPath}文件列表信息`);
+
+        let list = await this.client.list(dirpath, pattern);
+        let tipStr = `[sftp] getFileList ${dirPath}.`;
+
+        if (!Array.isArray(list)) {
+            list = [];
+            Logger.error(tipStr);
+        }
+
+        Logger.info(`[sftp] 文件夹 ${tipStr} 查询成功`);
+
+        return list;
     }
 
     //下载文件
     async downloadFile (filePath, targetPath) {
-        await this.sftpClient.get(filePath, targetPath);
-    }
+        Logger.info(`[sftp] 正在下载${filePath}文件列表信息`);
 
-    // 上传文件(找不到)
-    _upload (filePath) {
-        let remotePath = path.posix.join(this.options.root, filePath);
-        if (fs.statSync(filePath).isDirectory()) {
-            return this.sftpClient.mkdir(remotePath, true);
+        let res = await this.client.get(filePath, targetPath);
+
+        if (res) {
+            Logger.info(`[sftp] 文件${filePath}成功下载`);
         }
 
-        return this.sftpClient.put(filePath, remotePath);
+        return res
+        
+    }
+    
+    /**
+     * 文件上传到服务器
+     * @param {*} filePath 
+     * @param {*} targetFilePath 
+     * @param {*} client  ftp连接实例
+     * @param {*} hasDirectoryFlag  是否存在文件夹
+     * @returns {*} 成功的话返回当前的路径，失败返回报错信息
+     */
+    async startUpload (filePath, targetFilePath, hasDirectoryFlag) {
+        Logger.info(`[sftp] start upload files... root: ${this.options.root}`);
+        this.onStart();
+
+        let remotePath;
+        let target = targetFilePath ||  this.options.root;
+
+        if (!hasDirectoryFlag) {
+            let baseName = path.basename(filePath);
+            remotePath = path.join(target, baseName);   
+        } else {
+            remotePath = path.join(target, filePath);
+        }
+
+        let res;
+        if (fs.statSync(filePath).isDirectory()) {
+            res = await this.client.mkdir(remotePath, true);
+        } else {
+            // 添加进度条
+            let rs = fs.createReadStream(filePath);
+            let total = fs.statSync(filePath).size;
+            await this.getSpeed(rs, total, filePath);
+
+            res = await this.client.put(filePath, remotePath);
+        }
+
+        if (res) {
+            Logger.info(`[sftp] ${filePath} 文件上传成功`);
+        } else {
+            Logger.error(`[sftp] ${filePath} 文件上传失败.`);
+        }
+
+        return res;
     }
 
 
     // 删除文件
     async delete (remoteFile) {
         if (await this.exists(remoteFile)) {
-            console.error('当前路径不存在');
+            Logger.error(`[sftp] 文件 ${remoteFile} 路径不存在`);
             return;
         }
-        await this.sftpClient.delete(remoteFile);
+        await this.client.delete(remoteFile);
     }
 
     /**
@@ -96,30 +148,13 @@ class Sftp extends BaseUploader {
      * @returns {Boolean} 返回true | false
      */
     async exists (remotePath) {
-        return await this.sftpClient.exists(remotePath);
-    }
-
-    async startUpload () {
-        console.log(`[sftp] start upload files... root: ${this.options.root}`);
-        this.onStart();
-
-        // sftp上传过快会挂掉，这里改成单个文件一个一个升级
-        try {
-            for (let file of this.options.files) {
-                await this._upload(file);
-                this.onFileUpload(file);
-            }
-        } catch (e) {
-            this.onFailure(e);
-        }
-
-        this.onSuccess();
+        return await this.client.exists(remotePath);
     }
 
     onDestroyed () {
-        if (this.sftpClient) {
-            this.sftpClient.end();
-            this.sftpClient = null;
+        if (this.client) {
+            this.client.end();
+            this.client = null;
         }
         super.onDestroyed();
     }

@@ -10,38 +10,27 @@ let { glob} = require('../util/util');
 let {FTP_OPTION} = require('../../config.app');                 // 配置项的默认连接信息
 const {logger:Logger, setUserName} = require('../util/logger');
 
-const ALLOW_BLANK_KEY = ['host', 'port', 'user', 'password'];
 const DEFAULT_PATH = '/zjy';                // 默认路径
-const ACTION_TYPE = {           // 上传下载发生方式
-    parallel: 'parallel',       // 并行
-    serial: 'serial'            // 串行
-}
 
 class Ftp extends BaseUploader {
 
     constructor (options = {}) {
         super(options);
-        this.ftpClient = new Client();
+        this.client = new Client();
     }
 
-    initOptions (options) {
+    async initOptions (options) {
         this.options = Object.assign(FTP_OPTION, options);
         this.options.files = glob(this.options.files);
-        this.assert();
-        setUserName(this.options?.user || 'admin');
-    }
 
-    /**
-     * 校验连接必须字段
-     */
-    assert () {
-        ALLOW_BLANK_KEY.forEach(key => {
-            if (!this.options[key]) {
-                let warnTipStr = (key) => `[ftp:assert] options: "${key}" not found in ${ALLOW_BLANK_KEY}`;
-                Logger.warn(this.options.user, warnTipStr);
-                throw new Error(warnTipStr);
-            }
-        })
+        if(this.assert()) {
+
+            // // 单new对象的时候给了参数，默认自动连接
+            // if (!Object.keys(options).length) {
+            //     await this.connect();
+            // }
+            setUserName(this.options?.user || 'admin');
+        }
     }
 
     connect () {
@@ -51,16 +40,16 @@ class Ftp extends BaseUploader {
             let errTipStr =  (e) => `[ftp] connect error. ${e}`;
             Logger.info(infoTipStr);
 
-            this.ftpClient.connect({ host, port, user, password});
+            this.client.connect({ host, port, user, password});
 
-            this.ftpClient.on('ready', async () => {
+            this.client.on('ready', async () => {
                 Logger.info(`${infoTipStr} success`);
                 resolve(true);
             });
 
-            this.ftpClient.on('error', e => {
+            this.client.on('error', e => {
                 Logger.error(errTipStr(e));
-                throw new Error(errTipStr(e));
+                resolve(false);
             });
         });
     }
@@ -73,7 +62,7 @@ class Ftp extends BaseUploader {
         Logger.info(`正在查找${dirPath}文件列表信息`);
         
         return new Promise((resolve) => {
-            this.ftpClient.list(dirPath, false, (err, list) => {
+            this.client.list(dirPath, false, (err, list) => {
                 let tipStr = `[ftp] getFileList ${dirPath}.`;
                 if (err) {
                     Logger.error(tipStr + err);
@@ -91,8 +80,11 @@ class Ftp extends BaseUploader {
      * @param {String} dirPath 
      */
     switchDirectory (dirPath) {
+
+        Logger.info(`[ftp] 正在准备切换到 ${dirPath} 目录`);
+
         return new Promise((resolve) => {
-            this.ftpClient.switchDirectory(dirPath, (err, dir) => {
+            this.client.cwd(dirPath, (err, dir) => {
 
                 if (err) {
                     Logger.error(`[ftp] switchDirectory ${dirPath} error`);
@@ -114,7 +106,7 @@ class Ftp extends BaseUploader {
         let { err: ea, dir } = await this.switchDirectory(dirPath);
 
         return new Promise((resolve, reject) => {
-            this.ftpClient.get(fileName, (err, rs) => {
+            this.client.get(filePath, (err, rs) => {
                 let ws = fs.createWriteStream(fileName);
                 rs.pipe(ws);
                 resolve({ err: err });
@@ -137,7 +129,7 @@ class Ftp extends BaseUploader {
 
         // toDo: 这里需要做些文件相关约束判断
 
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             let cb = err => {
                 if (err) {
                     Logger.error(`[ftp] ${filePath} 文件上传失败. ${err}`);
@@ -149,9 +141,6 @@ class Ftp extends BaseUploader {
                 resolve(filePath);
             };
 
-            
-            console.log('当函数传值为：filePath/targetFilePath', filePath, targetFilePath);
-
             let remotePath;
             let target = targetFilePath ||  this.options.root;
 
@@ -162,17 +151,15 @@ class Ftp extends BaseUploader {
                 remotePath = path.join(target, filePath);
             }
 
-            console.log('当前远程文件', remotePath);
-
             if (fs.statSync(filePath).isDirectory()) {
-                this.ftpClient.mkdir(remotePath, true, cb);
+                this.client.mkdir(remotePath, true, cb);
             } else {
                 // 添加进度条
                 let rs = fs.createReadStream(filePath);
                 let total = fs.statSync(filePath).size;
-                this.getSpeed(rs, total, filePath);
+                await this.getSpeed(rs, total, filePath);
 
-                this.ftpClient.put(filePath, remotePath, cb);
+                this.client.put(filePath, remotePath, cb);
             }
         });
     }
@@ -195,7 +182,7 @@ class Ftp extends BaseUploader {
             }
 
             return new Promise((resolve, reject) => {
-                this.ftpClient.delete(fileName, (err, rs) => {
+                this.client.delete(fileName, (err, rs) => {
                     resolve({ err: err });
                 });
             });
@@ -203,7 +190,7 @@ class Ftp extends BaseUploader {
 
         if (folderPath) {
             return new Promise((resolve, reject) => {
-                this.ftpClient.rmdir(folderPath, true, (err, rs) => {
+                this.client.rmdir(folderPath, true, (err, rs) => {
                     resolve({ err: err });
                 });
             });
@@ -211,9 +198,9 @@ class Ftp extends BaseUploader {
     }
     
     onDestroyed () {
-        if (this.ftpClient) {
-            this.ftpClient.destroy();
-            this.ftpClient = null;
+        if (this.client) {
+            this.client.destroy();
+            this.client = null;
         }
         super.onDestroyed();
     }
