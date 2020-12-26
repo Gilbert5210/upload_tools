@@ -6,9 +6,10 @@ let path = require('path');
 let fs = require('fs');
 let Client = require('ftp');
 let BaseUploader = require('./base_uploader');
-let { glob} = require('../util/util');
+let { glob, isValidObjectKey} = require('../util/util');
 let {FTP_OPTION} = require('../../config.app');                 // 配置项的默认连接信息
 const {logger:Logger, setUserName} = require('../util/logger');
+let Response = require('../util/response');
 
 const DEFAULT_PATH = '/zjy';                // 默认路径
 
@@ -23,7 +24,7 @@ class Ftp extends BaseUploader {
         this.options = Object.assign(FTP_OPTION, options);
         this.options.files = glob(this.options.files);
 
-        if(this.assert()) {
+        if(isValidObjectKey(this.options)) {
 
             // // 单new对象的时候给了参数，默认自动连接
             // if (!Object.keys(options).length) {
@@ -88,10 +89,12 @@ class Ftp extends BaseUploader {
 
                 if (err) {
                     Logger.error(`[ftp] switchDirectory ${dirPath} error`);
+                    resolve(Response.failure(err, dirPath));
+                    return;
                 }
 
                 Logger.info(`[ftp] switchDirectory ${dirPath} success`);
-                resolve({ err: err, dir: dir });
+                resolve(Response.success('切换成功', dirPath));
             })
         });
     }

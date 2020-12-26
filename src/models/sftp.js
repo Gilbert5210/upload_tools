@@ -6,10 +6,11 @@ let path = require('path');
 let fs = require('fs');
 let Client = require('ssh2-sftp-client');
 let BaseUploader = require('./base_uploader');
-let { glob } = require('../util/util');
+let { glob, isValidObjectKey } = require('../util/util');
 let {SFTP_OPTION} = require('../../config.app');                 // 配置项的默认连接信息
 const DEFAULT_PATH = '/zjy';                // 默认路径
 const {logger:Logger, setUserName} = require('../util/logger');
+let Response = require('../util/response');
 
 class Sftp extends BaseUploader {
 
@@ -21,9 +22,9 @@ class Sftp extends BaseUploader {
     initOptions (options) {
         this.options = Object.assign(SFTP_OPTION, options);
         this.options.files = glob(this.options.files);
-        this.assert();
-
-        setUserName(this.options?.user || 'admin');
+        if (isValidObjectKey(this.options)) {
+            setUserName(this.options?.user || 'admin');
+        }
     }
 
     connect () {
@@ -52,17 +53,17 @@ class Sftp extends BaseUploader {
     /**
      * 获取文件夹列表(指定路径获取文件列表)
      * 默认获取根目录的所有文件
-     * @param {string} dirpath   目标地址
+     * @param {string} dirPath   目标地址
      * @param {string} pattern   正则过滤
      */
-    async getFileList (dirpath, pattern) {
-        if (!dirpath) {
-            dirpath = DEFAULT_PATH
+    async getFileList (dirPath, pattern) {
+        if (!dirPath) {
+            dirPath = DEFAULT_PATH
         }
 
         Logger.info(`[sftp] 正在查找${dirPath}文件列表信息`);
 
-        let list = await this.client.list(dirpath, pattern);
+        let list = await this.client.list(dirPath, pattern);
         let tipStr = `[sftp] getFileList ${dirPath}.`;
 
         if (!Array.isArray(list)) {
@@ -112,6 +113,7 @@ class Sftp extends BaseUploader {
         }
 
         let res;
+        let code = 200;
         if (fs.statSync(filePath).isDirectory()) {
             res = await this.client.mkdir(remotePath, true);
         } else {
@@ -123,13 +125,16 @@ class Sftp extends BaseUploader {
             res = await this.client.put(filePath, remotePath);
         }
 
-        if (res) {
-            Logger.info(`[sftp] ${filePath} 文件上传成功`);
+        if (!res) {
+            let msg = `[sftp] ${filePath} 文件上传成功`;
+            Logger.info(msg);
+            return Response.success(filePath, 'msg')
         } else {
-            Logger.error(`[sftp] ${filePath} 文件上传失败.`);
+            let msg = `[sftp] ${filePath} 文件上传失败.`;
+            Logger.info(msg);
+            return Response.success(filePath, msg)
         }
 
-        return res;
     }
 
 

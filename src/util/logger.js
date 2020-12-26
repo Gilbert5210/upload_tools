@@ -49,7 +49,7 @@ log4js.configure({
 
             // 为了文件路径在输出的时候可以正常显示
             enableCallStack: true,
-            level: 'all'
+            level: 'error'
         }
     }
 });
