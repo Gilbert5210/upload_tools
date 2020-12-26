@@ -3,6 +3,8 @@ let path = require('path');
 let {logger} = require('./logger');
 let glob = require('glob');
 
+const DEFAULT_ALLOW_BLANK_KEY = ['host', 'port', 'user', 'password'];
+
 // 删除整个目录
 function deleteDir (dir) {
     let dirStat = fs.statSync(dir);
@@ -50,65 +52,6 @@ function mkdirPath (pathStr) {
     return projectPath;
 }
 
-// 对图片base64转码
-function base64ImgByPath (imgSrc, basePath) {
-    let imgPath = path.join(basePath, imgSrc);
-    let imgData64 = '';
-
-    if (fs.existsSync(imgPath)) {
-        let imgData = fs.readFileSync(imgPath);
-        imgData64 = new Buffer.from(imgData, 'base64').toString('base64');
-        imgData64 = 'data:image/png;base64,' + imgData64;
-    } else {
-
-        logger.error(`[base64ImgByPath]需base64转码图片不存在：${imgPath}`);
-    }
-
-    return imgData64;
-}
-
-// 拷贝文件至目标目录
-function copyUploadFileToGoalDir (filename, goalDir, isDelete = true, isCustomPath = false) {
-    let staticSrc = path.resolve(__dirname, isCustomPath ? filename : '../static/' + filename);
-
-    let fileRealName = path.basename(filename);
-
-    console.log(path.basename(filename));
-
-    // fileRealName = fileRealName[fileRealName.length - 1];
-    fs.copyFileSync(staticSrc, goalDir + '/' + fileRealName);
-
-    if (isDelete && fs.existsSync(staticSrc)) {
-        fs.unlinkSync(staticSrc);
-    }
-}
-
-// 目录拷贝
-function copyDirectory (src, dest) {
-    let srcPath = path.resolve(__dirname, src);
-    let destPath = path.resolve(__dirname, dest);
-    if (!fs.existsSync(destPath)) {
-        fs.mkdirSync(destPath);
-    }
-
-    if (!fs.existsSync(srcPath)) {
-        logger.error(`[CopyDirectory]源文件不存在：${src}`);
-        return false;
-    }
-
-    let dirs = fs.readdirSync(srcPath);
-    dirs.forEach(function (item) {
-        let itemPath = path.join(srcPath, item);
-        let temp = fs.statSync(itemPath);
-        if (temp.isFile()) {
-            fs.copyFileSync(itemPath, path.join(destPath, item));
-        } else if (temp.isDirectory()) {
-            copyDirectory(itemPath, path.join(destPath, item));
-        }
-    });
-
-    logger.info(`[CopyDirectory]目录拷贝成功：源文件${src}， 目的文件${dest}`);
-}
 
 function globFile (pattern) {
     let p = path.join(process.cwd(), pattern);
@@ -148,7 +91,7 @@ function parseFiles (files = []) {
 function existFiled (filePath) {
     let existFlag = fs.existsSync(filePath);
     if (!existFlag) {
-        Logger.error(`源文件 ${filePath} 不存在！`);
+        logger.error(`源文件 ${filePath} 不存在！`);
     }
     return existFlag;
 }
@@ -157,13 +100,29 @@ function hasDirectoryPath (files) {
     return files.some(file => fs.statSync(file).isDirectory());
 }
 
+/**
+ * 校验连接必须字段
+ * @param {Array} allowBlanks 需要检验的关键字 
+ * @param {Object} options 待校验的对象
+ * @returns {Boolean}
+ */
+function isValidObjectKey (options, allowBlanks = DEFAULT_ALLOW_BLANK_KEY) {
+    let errorKeys = allowBlanks.filter(key => !options[key]);
+
+    if (errorKeys.length) {
+        let warnTipStr = `[isValidObjectKey] options: "${errorKeys}" not found in ${allowBlanks}`;
+        logger.warn(warnTipStr);
+        throw new Error('isValidObjectKey error');
+    }
+
+    return !errorKeys.length;
+}
+
 module.exports = {
     deleteDir,
     mkdirPath,
-    copyUploadFileToGoalDir,
-    base64ImgByPath,
-    copyDirectory,
     glob: parseFiles,
     existFiled,
-    hasDirectoryPath
+    hasDirectoryPath,
+    isValidObjectKey
 };

@@ -3,9 +3,13 @@ jest.mock('ssh2-sftp-client');
 let SFTPClient = require('../src/models/sftp');
 let sftp = require('ssh2-sftp-client');
 
-const ERROR = 0;
-const SUCCES = 1;
-const defaultMock = jest.fn(() => {});
+const ERROR = -1;
+const SUCCESS = 200;
+const defaultMock = jest.fn(() => {
+    return Promise.resolve({
+        code: SUCCESS
+    });
+});
 const options = {
     host: 'localhost',
     port: 21,
@@ -34,11 +38,17 @@ sftp.mockImplementation(() => {
                 cb?.({code: ERROR}, list);
             }
         }),
-        put: jest.fn((file, remoteFile, cb) => {cb?.(file)}),
+        put: jest.fn((file, remoteFile, cb) => {
+            if (file) {
+                cb?.('');
+            } else {
+                cb?.({code: ERROR})
+            }
+        }),
         get: jest.fn(file => {}),
         on: jest.fn((status, cb) => {
             if (status === 'ready') {
-                cb?.({code: SUCCES});
+                cb?.({code: SUCCESS});
             } else if (status === 'error') {
                 cb?.({code: ERROR});
             }
@@ -51,7 +61,7 @@ sftp.mockImplementation(() => {
 beforeEach(() => {
 
     // 测试之前 清除调用模拟构造函数和方法的记录
-    ftp.mockClear();
+    sftp.mockClear();
 });
 
 describe('测试Sftp相关的功能函数', () => {
@@ -71,13 +81,13 @@ describe('测试Sftp相关的功能函数', () => {
     //     expect(defaultMock).toBe(false);
     // }),
 
-    test('文件上传测试', async () => {
+    test('文件上传测试--上传成功', async () => {
         let client = new SFTPClient(options);
 
         let res = await client.startUpload(currentFile, remoteFile, false);
-        expect(res).toBe(currentFile);
+        expect(res.code).toBe(SUCCESS);
     }),
-
+    
     test('文件列表获取测试', async () => {
         let client = new SFTPClient();
         let res = await client.getFileList();

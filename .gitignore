@@ -4,7 +4,7 @@ node_modules
 /data
 /temp
 /logs
-/test/coverage
+test/coverage/*
 
 # local env files
 .env.local
